@@ -8,6 +8,8 @@ import activitiesRouter from './routes/activities.js';
 import goalsRouter from './routes/goals.js';
 import offsetsRouter from './routes/offsets.js';
 import statsRouter from './routes/stats.js';
+import assistantRouter from './routes/assistant.js';
+
 
 /**
  * Initialize Express application instance.
@@ -69,6 +71,8 @@ app.use('/api/activities', activitiesRouter);
 app.use('/api/goals', goalsRouter);
 app.use('/api/offsets', offsetsRouter);
 app.use('/api/stats', statsRouter);
+app.use('/api/assistant', assistantRouter);
+
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
 

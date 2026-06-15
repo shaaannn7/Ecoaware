@@ -304,3 +304,48 @@ export const statsApi = {
   tips: () => apiFetch<{ tips: Tip[] }>('/stats/tips'),
 };
 
+// ─── Assistant API ────────────────────────────────────────────────────────────
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: 'award' | 'zap' | 'shield' | 'leaf' | 'globe' | 'sparkles';
+  unlocked: boolean;
+  progress: number;
+  target: number;
+}
+
+export interface LeaderboardUser {
+  name: string;
+  netKg: number;
+  isCurrentUser?: boolean;
+}
+
+export interface CommunityResponse {
+  success: boolean;
+  communityAverageKg: number;
+  userNetKg: number;
+  userRank: number;
+  totalCompetitors: number;
+  leaderboard: LeaderboardUser[];
+}
+
+export interface ChatResponse {
+  success: boolean;
+  response: string;
+  timestamp: string;
+}
+
+export const assistantApi = {
+  chat: (message: string) =>
+    apiFetch<ChatResponse>('/assistant/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
+
+  badges: () => apiFetch<{ badges: Badge[] }>('/assistant/badges'),
+
+  community: () => apiFetch<CommunityResponse>('/assistant/community'),
+};
+
+
