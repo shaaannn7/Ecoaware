@@ -1,0 +1,36 @@
+{
+  "hero": {
+    "title": "Understand Your Impact.",
+    "subtitle": "Carbon footprinting isn't just a buzzword. It's the first step toward a sustainable future. Explore how daily habits shape the world around us.",
+    "cta": "Explore the Data"
+  },
+  "education": {
+    "stat": "10,500 kg",
+    "description": "The average annual carbon footprint per person in developed nations. To reverse climate change, the global average must drop to 2,000 kg by 2050."
+  },
+  "interactiveExample": {
+    "total": 12.4,
+    "transport": 6.5,
+    "energy": 4.1,
+    "breakdown": [
+      { "name": "Transportation", "value": 45, "color": "#10B981" },
+      { "name": "Energy", "value": 30, "color": "#34D399" },
+      { "name": "Diet", "value": 15, "color": "#6EE7B7" },
+      { "name": "Waste", "value": 10, "color": "#A7F3D0" }
+    ]
+  },
+  "tips": [
+    {
+      "title": "Rethink Commuting",
+      "copy": "Switching to public transit or carpooling just twice a week can reduce your transport emissions by 30%."
+    },
+    {
+      "title": "Optimize Energy",
+      "copy": "Phantom power drains electricity. Unplugging inactive devices and switching to LED bulbs significantly lowers your monthly footprint."
+    },
+    {
+      "title": "Dietary Shifts",
+      "copy": "Replacing red meat with plant-based alternatives for just one meal a day saves thousands of gallons of water and cuts methane emissions."
+    }
+  ]
+}

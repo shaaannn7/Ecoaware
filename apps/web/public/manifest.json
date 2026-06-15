@@ -1,0 +1,17 @@
+{
+  "short_name": "EcoAware",
+  "name": "EcoAware Carbon Tracker",
+  "icons": [
+    {
+      "src": "/pwa-icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#10b981",
+  "display": "standalone",
+  "orientation": "portrait"
+}
