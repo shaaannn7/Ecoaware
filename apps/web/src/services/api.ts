@@ -152,7 +152,8 @@ async function apiFetch<T>(
     headers['Authorization'] = `Bearer ${_accessToken}`;
   }
 
-  const res = await fetch(`/api${path}`, { ...options, headers });
+  const API_BASE = import.meta.env.VITE_API_URL || 'https://ecoaware-api.onrender.com';
+  const res = await fetch(`${API_BASE}/api${path}`, { ...options, headers });
 
   // Intercept 401 Unauthorized status, indicating access token expiration.
   if (res.status === 401 && retry && _refreshToken) {
@@ -186,7 +187,8 @@ async function tryRefresh(): Promise<boolean> {
     const storedRefresh = _refreshToken ?? getStoredRefreshToken();
     if (!storedRefresh) return false;
     
-    const data = await fetch('/api/auth/refresh', {
+    const API_BASE = import.meta.env.VITE_API_URL || 'https://ecoaware-api.onrender.com';
+    const data = await fetch(`${API_BASE}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: storedRefresh }),
