@@ -14,7 +14,7 @@ import { runMigrations } from './migrate.js';
 /**
  * Executes the full database population script.
  */
-async function seed() {
+export async function seed() {
   // Enforce DB tables initialization/validation before inserting mock rows.
   await runMigrations();
   console.log('🌱 Seeding database...');
@@ -37,7 +37,7 @@ async function seed() {
   // Guard clause to avoid re-populating historical data multiple times.
   if (inserted.length === 0) {
     console.log('⚠️  Demo user already exists. Skipping seed.');
-    process.exit(0);
+    return;
   }
 
   const userId = inserted[0].id;
@@ -113,11 +113,13 @@ async function seed() {
   console.log('✅ Seed complete!');
   console.log('   📧 Email: alex@ecoaware.com');
   console.log('   🔑 Password: password123');
-  process.exit(0);
 }
 
-seed().catch((err) => {
-  console.error('❌ Seed failed:', err);
-  process.exit(1);
-});
+// Only run the script directly if executed from CLI
+if (process.argv[1] && process.argv[1].endsWith('seed.ts')) {
+  seed().then(() => process.exit(0)).catch((err) => {
+    console.error('❌ Seed failed:', err);
+    process.exit(1);
+  });
+}
 

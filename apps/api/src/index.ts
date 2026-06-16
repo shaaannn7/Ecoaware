@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { runMigrations } from './db/migrate.js';
+import { seed } from './db/seed.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import authRouter from './routes/auth.js';
 import activitiesRouter from './routes/activities.js';
@@ -105,6 +106,7 @@ async function start() {
   try {
     // Run DB migrations check before binding to port to prevent incomplete database state requests.
     await runMigrations();
+    await seed();
     app.listen(PORT, () => {
       console.log(`\n🌿 Carbon Platform API running on http://localhost:${PORT}`);
       console.log(`📊 Health check: http://localhost:${PORT}/api/health\n`);
