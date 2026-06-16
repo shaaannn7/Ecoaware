@@ -171,6 +171,10 @@ We welcome contributions from developers, designers, and climate enthusiasts!
 Created for the **Prompt War** competition.
 Built with ❤️, TypeScript, and a passion for our planet.
 
+## Video
+[Screencast_20260615_222507.webm](https://github.com/user-attachments/assets/112e9184-50ec-4e96-aff2-ea08ec42a02e)
+
+
 ---
 
 <div align="center">
