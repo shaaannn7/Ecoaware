@@ -28,7 +28,7 @@ const PORT = parseInt(process.env.PORT ?? '3001');
  * Limits incoming connections to verified Vite frontend URLs during development & preview modes.
  */
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:4173'],
+  origin: ['http://localhost:5173', 'http://localhost:4173' , 'https://ecoaware-psi.vercel.app', 'https://ecoaware-api.onrender.com'],
   credentials: true,
 }));
 
