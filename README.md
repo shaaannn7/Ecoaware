@@ -20,7 +20,7 @@ EcoAware evolved from a simple carbon tracker into a visually immersive sustaina
 
 **The Problem:** Traditional carbon calculators feel like tax forms—dry, uninspiring, and disconnected from the beauty of the natural world they aim to protect. 
 
-**Our Solution:** EcoAware transforms personal climate action into an engaging, elegant experience. By combining actionable climate insights with striking data visualizations and a premium UI, we make sustainable living feel not just necessary, but aspirational.
+**Our Solution:** EcoAware transforms personal climate action into an engaging, elegant experience. By combining actionable climate insights with striking data visualizations and a premium UI, we inspire meaningful environmental action.
 
 ## ✨ Key Features
 
@@ -172,8 +172,11 @@ Created for the **Prompt War** competition.
 Built with ❤️, TypeScript, and a passion for our planet.
 
 ## Video
-[Ecoaware.webm](https://github.com/user-attachments/assets/99311908-8c80-44d6-a171-8616df76a7ad)
 
+<video width="100%" autoplay loop muted controls>
+  <source src="https://github.com/user-attachments/assets/99311908-8c80-44d6-a171-8616df76a7ad" type="video/webm">
+  Your browser does not support the video tag.
+</video>
 
 ---
 
