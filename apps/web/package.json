@@ -11,6 +11,8 @@
   "dependencies": {
     "@tanstack/react-query": "^5.101.0",
     "@types/react-helmet-async": "^1.0.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Carbon Tracker</title>
+    <title>EcoAware Carbon Tracker</title>
+    <meta name="description" content="EcoAware Carbon Tracker - Monitor, manage, and reduce your carbon footprint with AI-powered insights." />
+    <meta name="keywords" content="carbon tracker, sustainability, eco-friendly, carbon footprint" />
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#10b981" />
     <link rel="apple-touch-icon" href="/pwa-icon.png" />
@@ -12,7 +14,69 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <style>
+        .initial-preloader {
+          position: fixed;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background: #0a0f0d;
+          z-index: 9999;
+          font-family: 'Outfit', sans-serif;
+        }
+        .preloader-ring {
+          width: 50px;
+          height: 50px;
+          border: 3px solid rgba(16, 185, 129, 0.15);
+          border-top-color: #10b981;
+          border-radius: 50%;
+          animation: preloader-spin 0.8s linear infinite;
+        }
+        .preloader-dot {
+          position: absolute;
+          width: 6px;
+          height: 6px;
+          background: #34d399;
+          border-radius: 50%;
+          top: -3px;
+          left: 50%;
+          margin-left: -3px;
+          box-shadow: 0 0 10px rgba(52, 211, 153, 0.8);
+          transform-origin: 3px 28px;
+          animation: preloader-spin 0.8s linear infinite 0.1s;
+        }
+        .preloader-inner {
+          position: relative;
+        }
+        @keyframes preloader-spin { 
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); } 
+        }
+        .preloader-text {
+          margin-top: 24px;
+          color: #10b981;
+          font-weight: 900;
+          letter-spacing: 0.2em;
+          font-size: 11px;
+          text-transform: uppercase;
+          animation: preloader-pulse 2s ease-in-out infinite;
+        }
+        @keyframes preloader-pulse { 
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; } 
+        }
+      </style>
+      <div class="initial-preloader">
+        <div class="preloader-inner">
+          <div class="preloader-ring"></div>
+          <div class="preloader-dot"></div>
+        </div>
+        <div class="preloader-text">EcoAware</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

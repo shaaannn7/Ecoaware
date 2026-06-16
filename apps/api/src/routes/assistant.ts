@@ -236,12 +236,12 @@ router.get('/community', async (req: Request, res: Response) => {
 
     // Build competitive mock leaderboard including the user's live database footprint
     const mockLeaderboard = [
-      { name: 'Sarah Green', netKg: 85 },
-      { name: 'Marcus Eco', netKg: 140 },
-      { name: 'Clara Woods', netKg: 210 },
+      { name: 'Ananya Sharma', netKg: 85 },
+      { name: 'Rohan Mehta', netKg: 140 },
+      { name: 'Priya Iyer', netKg: 210 },
       { name: userName, netKg: Math.round(userNetKg), isCurrentUser: true },
-      { name: 'John Carbon', netKg: 490 },
-      { name: 'Vance Fossil', netKg: 720 }
+      { name: 'Arjun Patel', netKg: 490 },
+      { name: 'Vikram Desai', netKg: 720 }
     ];
 
     // Sort leaderboard from lowest net footprint to highest

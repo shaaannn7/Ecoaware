@@ -4,11 +4,13 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
   AreaChart, Area, XAxis
 } from 'recharts';
+import type { TooltipProps } from 'recharts';
 import { 
   Leaf, Plus, Trash2, Activity, Zap, TreePine, 
-  PieChart as PieChartIcon, Loader2, Target, Award
+  PieChart as PieChartIcon, Target, Award, Download
 } from 'lucide-react';
 import { activitiesApi, offsetsApi, goalsApi } from '../services/api';
+import { generateCarbonReport } from '../services/reportGenerator';
 
 /**
  * Renders semantic, frosted glass style category icons for activity listings.
@@ -44,6 +46,65 @@ function CategoryIcon({ category }: { category: string }) {
   }
 }
 
+/**
+ * Custom Recharts tooltip for the PieChart (Category Breakdown).
+ * Shows category name, percentage share, kg value, and contextual detail.
+ */
+function PieTooltipContent({ active, payload }: TooltipProps<number, string>) {
+  if (!active || !payload || payload.length === 0) return null;
+  const entry = payload[0];
+  const category = (entry.name || '').charAt(0).toUpperCase() + (entry.name || '').slice(1);
+  const pct = entry.value ?? 0;
+  const color = entry.payload?.color || '#10b981';
+  const kgValue = entry.payload?.kg;
+
+  return (
+    <div className="recharts-tooltip-custom">
+      <div className="tooltip-label">
+        <span className="tooltip-indicator" style={{ backgroundColor: color }} />
+        {category}
+      </div>
+      <div className="tooltip-value">{pct}%</div>
+      {kgValue !== undefined && <div className="tooltip-detail">{kgValue} kg CO₂e</div>}
+      <div className="tooltip-detail">of total emissions</div>
+    </div>
+  );
+}
+
+/**
+ * Custom Recharts tooltip for the AreaChart (Emissions Trend).
+ * Shows month label, kg value, and month-over-month comparison.
+ */
+function AreaTooltipContent({ active, payload, label }: TooltipProps<number, string> & { monthlyData?: { label: string; kg: number }[] }) {
+  if (!active || !payload || payload.length === 0) return null;
+  const kg = payload[0].value as number;
+
+  // Attempt to compute month-over-month delta via recharts payload index
+  let delta: number | null = null;
+  let prevKg: number | null = null;
+  const chartPayload = payload[0]?.payload;
+  if (chartPayload && Array.isArray((chartPayload as any).__monthlyRef)) {
+    const monthlyRef = (chartPayload as any).__monthlyRef as { label: string; kg: number }[];
+    const idx = monthlyRef.findIndex((m: any) => m.label === label);
+    if (idx > 0) {
+      prevKg = monthlyRef[idx - 1].kg;
+      delta = kg - prevKg;
+    }
+  }
+
+  return (
+    <div className="recharts-tooltip-custom">
+      <div className="tooltip-label">{label}</div>
+      <div className="tooltip-value">{kg} <span style={{ fontSize: '0.55em', fontWeight: 600, opacity: 0.7 }}>kg CO₂e</span></div>
+      {delta !== null && prevKg !== null && (
+        <div className="tooltip-detail" style={{ color: delta > 0 ? '#ef4444' : '#10b981' }}>
+          {delta > 0 ? '▲' : '▼'} {Math.abs(delta)} kg vs prev month
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Interface detailing action callback events for modal overlays */
 interface DashboardPageProps {
   /** Event triggered when adding a new activity footprint */
@@ -63,12 +124,28 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
   const { user, isAuthenticated } = useAuth();
   const { data, isLoading, isError, refetch } = useCarbonData(isAuthenticated);
 
-  // Loading state fallback
+  // Loading state fallback – premium skeleton loader
   if (isLoading || !data) {
     return (
-      <div className="flex flex-col justify-center items-center py-32 text-slate-500">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
-        <span className="mt-4 text-xs font-bold uppercase tracking-wider text-slate-400">Loading Dashboard...</span>
+      <div className="flex flex-col items-center w-full pb-8">
+        {/* Eco loader spinner + status message */}
+        <div className="flex flex-col items-center py-10">
+          <div className="eco-loader" />
+          <span className="mt-5 text-xs font-bold uppercase tracking-wider text-slate-400">Crunching your carbon data…</span>
+        </div>
+
+        {/* Skeleton grid matching dashboard layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 w-full">
+          {/* Top row: 3 skeleton cards */}
+          <div className="lg:col-span-5 bento-card skeleton-pulse min-h-[420px]" />
+          <div className="lg:col-span-4 bento-card skeleton-pulse min-h-[300px]" />
+          <div className="lg:col-span-3 bento-card skeleton-pulse min-h-[300px]" />
+          {/* Second row: 2 skeleton cards */}
+          <div className="lg:col-span-6 bento-card skeleton-pulse min-h-[260px]" />
+          <div className="lg:col-span-6 bento-card skeleton-pulse min-h-[260px]" />
+          {/* Bottom row: full-width skeleton */}
+          <div className="lg:col-span-12 bento-card skeleton-pulse min-h-[220px]" />
+        </div>
       </div>
     );
   }
@@ -96,13 +173,38 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
     color: isDarkMode ? b.colorDark : b.colorLight,
   }));
 
+  // Inject monthly reference into each data point so AreaTooltipContent can compute deltas
+  const monthlyWithRef = monthly.map((m) => ({ ...m, __monthlyRef: monthly }));
+
   const activeGoals = goals.filter(g => !g.achieved);
+
+  const handleDownloadReport = () => {
+    if (!data || !user) return;
+    generateCarbonReport({
+      userName: user.name,
+      generatedDate: new Date().toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' }),
+      footprint: {
+        totalKg: footprint?.totalKg || 0,
+        offsetKg: footprint?.offsetKg || 0,
+        netKg: footprint?.netKg || 0,
+        totalTons: footprint?.totalTons || 0,
+        offsetTons: footprint?.offsetTons || 0,
+        netTons: footprint?.netTons || 0,
+      },
+      breakdown: breakdown.map(b => ({ category: b.category, kg: b.kg, value: b.value })),
+      monthly,
+      recentActivities: recentActivities.map(a => ({ category: a.category, description: a.description, co2Kg: a.co2Kg, date: a.date })),
+      goals: activeGoals.map(g => ({ title: g.title, targetCo2Kg: g.targetCo2Kg, deadline: g.deadline })),
+      offsets: offsets.map(o => ({ provider: o.provider, co2Kg: o.co2Kg, date: o.date })),
+      monthlyLimitKg: user.monthlyLimitKg || 1000,
+    });
+  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch w-full animate-fade-in-up pb-8">
       
       {/* ── Net Footprint Summary Bento Box ── */}
-      <div className="lg:col-span-5 flex flex-col justify-between bento-card bento-card-hover bento-card-glow-mint p-8 min-h-[420px]">
+      <div className="lg:col-span-5 flex flex-col justify-between bento-card bento-card-hover bento-card-glow-mint p-8 min-h-[420px] stagger-enter-1 micro-lift">
         <div>
           <div className="flex justify-between items-start">
             <div>
@@ -136,14 +238,18 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
           </div>
         </div>
 
-        <button onClick={onOpenActivity} className="btn-bento-primary w-full mt-8 flex items-center justify-center space-x-2">
+        <button onClick={onOpenActivity} className="btn-bento-primary w-full mt-8 flex items-center justify-center space-x-2 micro-press">
           <Plus size={16} />
           <span>Log Activity</span>
+        </button>
+        <button onClick={handleDownloadReport} className="btn-bento-secondary w-full mt-3 flex items-center justify-center space-x-2 micro-press">
+          <Download size={16} />
+          <span>Download Report</span>
         </button>
       </div>
 
       {/* ── Category Breakdown Share Chart ── */}
-      <div className="lg:col-span-4 bento-card bento-card-hover p-8 flex flex-col justify-between">
+      <div className="lg:col-span-4 bento-card bento-card-hover p-8 flex flex-col justify-between stagger-enter-2 micro-lift">
         <div>
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Category Share</span>
           <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1 tracking-tight">Emissions by Source</h3>
@@ -164,11 +270,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '16px', background: isDarkMode ? 'rgba(13,20,37,0.4)' : 'rgba(255,255,255,0.4)', backdropFilter: 'blur(24px)', border: isDarkMode ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(255,255,255,0.5)' }}
-                    itemStyle={{ color: isDarkMode ? '#f8fafc' : '#0f172a', fontSize: '12px', fontWeight: 'bold' }}
-                    formatter={(value: number) => [`${value}%`, 'Share']}
-                  />
+                  <Tooltip content={<PieTooltipContent />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute flex flex-col items-center justify-center pointer-events-none">
@@ -193,7 +295,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
       </div>
 
       {/* ── Monthly Carbon Allowance Progress ── */}
-      <div className="lg:col-span-3 bento-card bento-card-hover bento-card-glow-indigo p-6 flex flex-col justify-between">
+      <div className="lg:col-span-3 bento-card bento-card-hover bento-card-glow-indigo p-6 flex flex-col justify-between stagger-enter-3 micro-lift">
         <div>
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Carbon Budget</span>
           <h3 className="text-lg font-black text-slate-900 dark:text-white mt-1 tracking-tight">Limit Progress</h3>
@@ -224,7 +326,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
       </div>
 
       {/* ── Historical Trend Area Graph ── */}
-      <div className="lg:col-span-6 bento-card p-6 flex flex-col justify-between">
+      <div className="lg:col-span-6 bento-card p-6 flex flex-col justify-between stagger-enter-4 micro-lift">
         <div>
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Analytics</span>
           <h3 className="text-lg font-black text-slate-900 dark:text-white mt-0.5 tracking-tight">Emissions over time</h3>
@@ -237,7 +339,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthly} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={monthlyWithRef} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorKg" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={isDarkMode ? '#10b981' : '#6366f1'} stopOpacity={0.4}/>
@@ -245,12 +347,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="label" stroke={isDarkMode ? '#475569' : '#94a3b8'} fontSize={10} tickLine={false} axisLine={false} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '16px', background: isDarkMode ? '#0d1425' : '#ffffff', border: isDarkMode ? '1px solid #1e293b' : '1px solid #e2e8f0' }}
-                  labelStyle={{ color: isDarkMode ? '#94a3b8' : '#64748b', fontSize: '10px', fontWeight: 'bold' }}
-                  itemStyle={{ color: isDarkMode ? '#10b981' : '#6366f1', fontSize: '12px', fontWeight: 'black' }}
-                  formatter={(value: number) => [`${value} kg`, 'CO₂e']}
-                />
+                <Tooltip content={<AreaTooltipContent />} />
                 <Area type="monotone" dataKey="kg" stroke={isDarkMode ? '#10b981' : '#6366f1'} strokeWidth={2} fillOpacity={1} fill="url(#colorKg)" />
               </AreaChart>
             </ResponsiveContainer>
@@ -264,7 +361,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
       </div>
 
       {/* ── Active Goals & Offset Credits Panel ── */}
-      <div className="lg:col-span-6 bento-card p-6 flex flex-col justify-between">
+      <div className="lg:col-span-6 bento-card p-6 flex flex-col justify-between stagger-enter-5 micro-lift">
         <div>
           <div className="flex justify-between items-center mb-6">
             <div>
@@ -272,10 +369,10 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
               <h3 className="text-lg font-black text-slate-900 dark:text-white mt-0.5 tracking-tight">My credits</h3>
             </div>
             <div className="flex space-x-2">
-              <button onClick={onOpenGoal} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-white transition-colors flex items-center">
+              <button onClick={onOpenGoal} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-white transition-colors flex items-center micro-press">
                 <Target size={11} className="mr-1 text-indigo-500" /> Goal
               </button>
-              <button onClick={onOpenOffset} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-white transition-colors flex items-center">
+              <button onClick={onOpenOffset} className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-white transition-colors flex items-center micro-press">
                 <Award size={11} className="mr-1 text-emerald-500" /> Offset
               </button>
             </div>
@@ -290,7 +387,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
 
             {/* List active goals with delete options */}
             {activeGoals.map(goal => (
-              <div key={`goal-${goal.id}`} className="p-3 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex justify-between items-center">
+              <div key={`goal-${goal.id}`} className="p-3 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex justify-between items-center micro-glow">
                 <div>
                   <div className="flex items-center space-x-1.5">
                     <Target size={12} className="text-indigo-400" />
@@ -300,10 +397,10 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
                 </div>
                 <div className="flex items-center space-x-3">
                   <span className="text-xs font-black text-indigo-400">-{goal.targetCo2Kg}kg</span>
-                  <button onClick={async () => {
+                  <button aria-label="Delete Goal" onClick={async () => {
                     await goalsApi.delete(goal.id);
                     refetch();
-                  }} className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-500/10 transition-all">
+                  }} className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-500/10 transition-all micro-press">
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -312,7 +409,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
 
             {/* List offsets with delete options */}
             {offsets.map(off => (
-              <div key={`offset-${off.id}`} className="p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex justify-between items-center">
+              <div key={`offset-${off.id}`} className="p-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex justify-between items-center micro-glow">
                 <div>
                   <div className="flex items-center space-x-1.5">
                     <Award size={12} className="text-emerald-500 dark:text-emerald-400" />
@@ -322,10 +419,10 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
                 </div>
                 <div className="flex items-center space-x-3">
                   <span className="text-xs font-black text-emerald-400">-{off.co2Kg}kg</span>
-                  <button onClick={async () => {
+                  <button aria-label="Delete Offset" onClick={async () => {
                     await offsetsApi.delete(off.id);
                     refetch();
-                  }} className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-500/10 transition-all">
+                  }} className="text-slate-400 hover:text-red-500 p-1 rounded-lg hover:bg-red-500/10 transition-all micro-press">
                     <Trash2 size={13} />
                   </button>
                 </div>
@@ -343,7 +440,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
       </div>
 
       {/* ── Recent Log Timeline ── */}
-      <div className="lg:col-span-12 bento-card p-6 flex flex-col justify-between">
+      <div className="lg:col-span-12 bento-card p-6 flex flex-col justify-between stagger-enter-6 micro-lift">
         <div>
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Log timeline</span>
           <h3 className="text-lg font-black text-slate-900 dark:text-white mt-0.5 mb-6 tracking-tight">Recent activities</h3>
@@ -352,7 +449,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
             {recentActivities.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-12">No registered logs yet</p>
             ) : recentActivities.map(act => (
-              <div key={act.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-all group">
+              <div key={act.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-800/40 transition-all group micro-glow">
                 <div className="flex items-center space-x-3 min-w-0">
                   <CategoryIcon category={act.category} />
                   <div className="min-w-0">
@@ -363,10 +460,10 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
                 
                 <div className="flex items-center space-x-3">
                   <span className="text-xs font-black text-slate-900 dark:text-white">{act.co2Kg}kg</span>
-                  <button onClick={async () => {
+                  <button aria-label="Delete Activity" onClick={async () => {
                     await activitiesApi.delete(act.id);
                     refetch();
-                  }} className="opacity-0 group-hover:opacity-100 transition-all p-1 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-500">
+                  }} className="opacity-0 group-hover:opacity-100 transition-all p-1 rounded-lg hover:bg-red-500/10 text-slate-400 hover:text-red-500 micro-press">
                     <Trash2 size={13} />
                   </button>
                 </div>

@@ -300,6 +300,183 @@
       inset 1px 1px 0px rgba(255, 255, 255, 0.08),
       0 4px 12px rgba(0, 0, 0, 0.15);
   }
+
+  /* ── Staggered Bottom-to-Top Entry Animations ── */
+  .stagger-enter-1 { animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0ms both; }
+  .stagger-enter-2 { animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 80ms both; }
+  .stagger-enter-3 { animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 160ms both; }
+  .stagger-enter-4 { animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 240ms both; }
+  .stagger-enter-5 { animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 320ms both; }
+  .stagger-enter-6 { animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 400ms both; }
+  .stagger-enter-7 { animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 480ms both; }
+  .stagger-enter-8 { animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) 560ms both; }
+
+  /* ── Tactile Micro-Interaction Hover Classes ── */
+  .micro-lift {
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .micro-lift:hover {
+    transform: translateY(-3px) scale(1.005);
+    box-shadow: 0 8px 24px -4px rgba(16, 185, 129, 0.18);
+  }
+  .micro-lift:active {
+    transform: scale(0.98) translateY(0);
+  }
+
+  .micro-press {
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .micro-press:hover {
+    transform: scale(1.02);
+    filter: brightness(1.03);
+  }
+  .micro-press:active {
+    transform: scale(0.96);
+  }
+
+  .micro-glow {
+    transition: all 0.35s ease;
+  }
+  .micro-glow:hover {
+    box-shadow: 0 0 20px -5px rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.3);
+  }
+  .micro-glow:active {
+    box-shadow: 0 0 28px -5px rgba(16, 185, 129, 0.25);
+  }
+
+  /* ── Sophisticated Loading Indicators ── */
+
+  /* Orbital leaf spinner */
+  .eco-loader {
+    width: 48px;
+    height: 48px;
+    position: relative;
+  }
+  .eco-loader::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 3px solid rgba(16, 185, 129, 0.15);
+    border-top-color: #10b981;
+    border-radius: 50%;
+    animation: eco-spin 0.8s linear infinite;
+  }
+  .eco-loader::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    margin-left: -3px;
+    background: #34d399;
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+    animation: eco-spin 0.8s linear infinite 0.1s;
+    transform-origin: 3px 27px;
+  }
+
+  /* Three pulsing dots loader */
+  .eco-loader-dots {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
+  }
+  .eco-loader-dots span {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(16, 185, 129, 0.3);
+    animation: eco-dot-pulse 1.4s infinite;
+  }
+  .eco-loader-dots span:nth-child(1) { animation-delay: 0s; }
+  .eco-loader-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .eco-loader-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  /* Horizontal shimmer loading bar */
+  .eco-loader-bar {
+    height: 3px;
+    width: 100%;
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 9999px;
+    overflow: hidden;
+    position: relative;
+  }
+  .eco-loader-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -40%;
+    height: 100%;
+    width: 40%;
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.5), transparent);
+    animation: eco-shimmer 1.5s infinite ease-in-out;
+  }
+
+  /* Premium skeleton loading effect */
+  .skeleton-pulse {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.05) 25%, rgba(16, 185, 129, 0.12) 50%, rgba(16, 185, 129, 0.05) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-sweep 1.8s ease-in-out infinite;
+    border-radius: 12px;
+  }
+  body.dark .skeleton-pulse {
+    background: linear-gradient(90deg, rgba(16, 185, 129, 0.03) 25%, rgba(16, 185, 129, 0.08) 50%, rgba(16, 185, 129, 0.03) 75%);
+    background-size: 200% 100%;
+  }
+
+  /* ── Enhanced Chart Tooltip Styles ── */
+  .recharts-tooltip-custom {
+    border-radius: 20px;
+    padding: 14px 18px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08), inset 1px 1px 0 rgba(255, 255, 255, 0.6);
+    font-family: 'Outfit', sans-serif;
+  }
+  body.dark .recharts-tooltip-custom {
+    background: rgba(8, 15, 12, 0.85);
+    border: 1px solid rgba(16, 185, 129, 0.15);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), inset 1px 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .tooltip-label {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: rgba(100, 116, 139, 1);
+    margin-bottom: 6px;
+  }
+
+  .tooltip-value {
+    font-size: 16px;
+    font-weight: 900;
+    letter-spacing: -0.025em;
+    color: #0f172a;
+  }
+  body.dark .tooltip-value {
+    color: #f8fafc;
+  }
+
+  .tooltip-detail {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(100, 116, 139, 0.7);
+    margin-top: 2px;
+  }
+
+  .tooltip-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-right: 8px;
+    box-shadow: 0 0 6px currentColor;
+  }
 }
 
 @layer utilities {
@@ -311,6 +488,9 @@
   }
   .animate-fade-in-up {
     animation: fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .animate-stagger-rise {
+    animation: stagger-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
 }
 
@@ -360,6 +540,33 @@
   animation: fold-and-shrink 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* ── New Keyframes ── */
+
+@keyframes stagger-rise {
+  0% { opacity: 0; transform: translateY(30px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes eco-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes eco-dot-pulse {
+  0%, 100% { transform: scale(0.5); opacity: 0.3; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes eco-shimmer {
+  0% { left: -40%; }
+  100% { left: 100%; }
+}
+
+@keyframes skeleton-sweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* Premium Bio-Glass custom scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -393,4 +600,17 @@ body.dark ::-webkit-scrollbar-thumb:hover {
   scrollbar-color: rgba(16, 185, 129, 0.2) transparent;
 }
 
+/* ── Dark Mode View Transition ── */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
 
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}

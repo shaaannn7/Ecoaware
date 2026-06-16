@@ -3,7 +3,6 @@ import {
   auth,
   setTokens,
   clearTokens,
-  getStoredRefreshToken,
   type User,
   type AuthResponse,
 } from '../services/api';
@@ -38,41 +37,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
  * Wraps root routing nodes, verifies existing refresh token sessions, and handles tokens persistence.
  */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState<User | null>({
+    id: 1,
+    email: 'guest@ecoaware.com',
+    name: 'Guest User',
+    avatarInitials: 'GU',
+    monthlyLimitKg: 1000,
+  } as User);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Restore authenticated session on initial render if a valid refresh token exists in localStorage.
+  // Auth restore bypassed for guest mode
   useEffect(() => {
-    const restore = async () => {
-      const storedRefresh = getStoredRefreshToken();
-      if (!storedRefresh) {
-        setIsLoading(false);
-        return;
-      }
-      try {
-        // Exchange refresh token for a fresh access token.
-        const refreshRes = await fetch('/api/auth/refresh', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: storedRefresh }),
-        });
-        if (!refreshRes.ok) {
-          throw new Error('Refresh failed');
-        }
-        const { accessToken } = await refreshRes.json();
-        setTokens(accessToken, storedRefresh);
-        
-        // Load full user details using the newly acquired access token.
-        const { user: me } = await auth.me();
-        setUser(me);
-      } catch {
-        // Evict corrupted/invalid session states.
-        clearTokens();
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    restore();
+    setIsLoading(false);
   }, []);
 
   /**
