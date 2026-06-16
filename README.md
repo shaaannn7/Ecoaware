@@ -173,9 +173,8 @@ Built with ❤️, TypeScript, and a passion for our planet.
 
 ## Video
 
-<video width="100%" autoplay loop muted controls>
-  <source src="[Ecoaware.webm](https://github.com/user-attachments/assets/6e8231ab-2b08-4d56-9c71-f5bc7a6918b6)
-" type="video/webm">
+<video width="100%" autoplay loop muted controls style="border-radius: 8px;">
+  <source src="https://github.com/user-attachments/assets/6e8231ab-2b08-4d56-9c71-f5bc7a6918b6" type="video/webm">
   Your browser does not support the video tag.
 </video>
 
