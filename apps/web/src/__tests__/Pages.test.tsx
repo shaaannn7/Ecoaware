@@ -4,7 +4,7 @@ import React from 'react';
 import DashboardPage from '../pages/DashboardPage';
 import InsightsPage from '../pages/InsightsPage';
 import { AuthProvider } from '../contexts/AuthContext';
-import { goalsApi, offsetsApi, activitiesApi, assistantApi } from '../services/api';
+import { goalsApi, offsetsApi, assistantApi } from '../services/api';
 
 // Mock recharts
 vi.mock('recharts', () => ({
