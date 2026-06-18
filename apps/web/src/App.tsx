@@ -133,6 +133,37 @@ export function AuthPage() {
     setIsSigned(false);
   };
 
+  const autographSignature = () => {
+    if (!name.trim()) {
+      setError('Please type your name first to autograph.');
+      return;
+    }
+    setError('');
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear previous drawing
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw stylized cursive text on canvas
+    ctx.font = 'italic bold 22px Georgia, serif';
+    const gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+    gradient.addColorStop(0, '#06b6d4');
+    gradient.addColorStop(1, '#10b981');
+    ctx.fillStyle = gradient;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = 'rgba(16, 185, 129, 0.4)';
+    
+    ctx.fillText(name, canvas.width / 2, canvas.height / 2);
+    
+    pointsDrawn.current = 50; // satisfies minimum threshold
+    setIsSigned(true);
+  };
+
   // Seed Box Proximity / Growth logic
   const handleSeedMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = seedCanvasRef.current;
@@ -376,18 +407,29 @@ export function AuthPage() {
           <div className="space-y-1.5 relative">
             <div className="flex justify-between items-center">
               <label className="text-[9px] font-black uppercase tracking-widest text-slate-400">
-                Ink Pad Signature Signature
+                Ink Pad Signature
               </label>
-              {isSigned && (
-                <button
-                  type="button"
-                  onClick={clearSignature}
-                  disabled={isStamped}
-                  className="text-[9px] font-bold text-slate-500 hover:text-red-400 transition-colors"
-                >
-                  Clear signature
-                </button>
-              )}
+              <div className="flex space-x-2">
+                {!isSigned && name.trim() && (
+                  <button
+                    type="button"
+                    onClick={autographSignature}
+                    className="text-[9px] font-black uppercase tracking-wider text-emerald-400 hover:text-emerald-300 transition-colors"
+                  >
+                    Use Autograph
+                  </button>
+                )}
+                {isSigned && (
+                  <button
+                    type="button"
+                    onClick={clearSignature}
+                    disabled={isStamped}
+                    className="text-[9px] font-bold text-slate-500 hover:text-red-400 transition-colors"
+                  >
+                    Clear signature
+                  </button>
+                )}
+              </div>
             </div>
             <div className="w-full h-[85px] rounded-xl bg-slate-950/60 border border-white/10 relative overflow-hidden">
               <canvas

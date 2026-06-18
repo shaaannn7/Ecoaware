@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import compression from 'vite-plugin-compression';
@@ -43,6 +44,32 @@ export default defineConfig({
           recharts: ['recharts'],
           lucide: ['lucide-react'],
         },
+      },
+    },
+  },
+  // ─── Vitest Configuration ──────────────────────────────────────────────────
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/__tests__/**/*.test.ts', 'src/__tests__/**/*.test.tsx'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html', 'lcov'],
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        'src/__tests__/**',
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        'src/test/**',
+        'src/services/reportGenerator.ts',
+        'src/services/api.ts',
+      ],
+      thresholds: {
+        statements: 50,
+        branches: 45,
+        functions: 50,
+        lines: 50,
       },
     },
   },

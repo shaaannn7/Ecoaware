@@ -3,11 +3,47 @@ import { db } from '../db/connection.js';
 import { activities, offsets, goals, users } from '../db/schema.js';
 import { eq, sql } from 'drizzle-orm';
 import { authenticate } from '../middleware/auth.js';
+import { decryptUserField } from '../services/crypto.js';
+import { askGemini } from '../services/gemini.js';
+import { Tip, TIPS_LIBRARY } from '../services/tips.js';
 
 const router = Router();
 
 // Secure all assistant routes
 router.use(authenticate);
+
+/**
+ * Calculates text similarity using Jaccard index coefficient.
+ */
+function getSemanticSimilarity(text1: string, text2: string): number {
+  const words1 = new Set(text1.toLowerCase().match(/\w+/g) || []);
+  const words2 = new Set(text2.toLowerCase().match(/\w+/g) || []);
+  if (words1.size === 0 || words2.size === 0) return 0;
+  const intersection = new Set([...words1].filter(x => words2.has(x)));
+  const union = new Set([...words1, ...words2]);
+  return intersection.size / union.size;
+}
+
+/**
+ * Retrieves the most semantically relevant tips for a query from our local knowledge base.
+ */
+function retrieveTopTips(query: string, limit = 2): Tip[] {
+  const scored = TIPS_LIBRARY.map(tip => {
+    const content = `${tip.title} ${tip.description} ${tip.category}`;
+    return {
+      tip,
+      score: getSemanticSimilarity(query, content)
+    };
+  });
+  // Sort descending by score
+  scored.sort((a, b) => b.score - a.score);
+  const matches = scored.filter(s => s.score > 0).map(s => s.tip);
+  if (matches.length > 0) {
+    return matches.slice(0, limit);
+  }
+  // Fallback to transport tips
+  return TIPS_LIBRARY.slice(0, limit);
+}
 
 /**
  * Interface detailing the structure of a gamification badge
@@ -64,50 +100,81 @@ router.post('/chat', async (req: Request, res: Response) => {
     const topCategory = breakdownRows.length > 0 && breakdownRows[0].totalKg > 0 ? breakdownRows[0].category : null;
     const topCategoryEmissions = breakdownRows.length > 0 ? breakdownRows[0].totalKg : 0;
 
-    const lowerMsg = message.toLowerCase();
+    // RAG Retrieval Step: Find relevant recommendations locally
+    const retrievedTips = retrieveTopTips(message, 2);
+    const tipsContext = retrievedTips
+      .map(t => `- [${t.category.toUpperCase()}] ${t.title}: ${t.description} (Potential savings: ${t.savingsKg} kg/mo)`)
+      .join('\n');
+
     let responseText = '';
 
-    // Contextual AI-like response generation based on actual user data
-    if (lowerMsg.includes('analyze') || lowerMsg.includes('footprint') || lowerMsg.includes('data')) {
-      responseText = `Based on my analysis of your carbon data, your total emissions stand at **${totalKg.toFixed(1)} kg CO₂e**, and you have offset **${offsetKg.toFixed(1)} kg CO₂e** through credits, leaving a net footprint of **${netKg.toFixed(1)} kg CO₂e**.\n\n`;
+    // If Gemini key is set, query the real LLM with dynamic statistics and RAG data
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const prompt = `You are the "EcoAware AI Assistant", a friendly and extremely helpful sustainability coach.
+Here is the real-time carbon statistics context for the authenticated user:
+- Total logged emissions: ${totalKg.toFixed(1)} kg CO2e
+- Total offset credits: ${offsetKg.toFixed(1)} kg CO2e
+- Net carbon footprint: ${netKg.toFixed(1)} kg CO2e
+- Top emitting category: ${topCategory ? `${topCategory.toUpperCase()} (${topCategoryEmissions.toFixed(1)} kg)` : 'None logged yet'}
 
-      if (topCategory) {
-        const percentage = totalKg > 0 ? ((topCategoryEmissions / totalKg) * 100).toFixed(0) : '0';
-        responseText += `Your highest emitting sector is **${topCategory.toUpperCase()}**, representing **${percentage}%** (${topCategoryEmissions.toFixed(1)} kg) of your total footprint. `;
+We also retrieved these highly relevant sustainability tips from our repository using RAG for this user's query:
+${tipsContext}
+
+The user's query is:
+"${message}"
+
+Write a helpful, structured, and friendly markdown response answering their query, referencing their specific carbon data and proposing the matched tips. Keep the response under 3 paragraphs.`;
         
-        if (topCategory === 'transport') {
-          responseText += `Since travel is your largest contributor, I recommend prioritizing public transport commutes, carpooling, or walking for short-distance trips. Shifting 3 trips a week to cycling can save up to **45 kg CO₂e** per month!`;
-        } else if (topCategory === 'energy') {
-          responseText += `Since home energy usage is high, check for phantom plug loads. Unplugging appliances when not in use and lowering your thermostat by 2°F during peak hours can shave **35 kg CO₂e** off your monthly bill.`;
-        } else if (topCategory === 'diet') {
-          responseText += `Since agriculture and diet carry high carbon weights, introducing just 2 meatless days a week could reduce your food footprint by **30 kg CO₂e** per month.`;
-        } else if (topCategory === 'waste') {
-          responseText += `Reducing packaging waste by buying in bulk and setting up a kitchen compost bin can save up to **25 kg CO₂e** of methane-equivalent emissions monthly.`;
+        responseText = await askGemini(prompt);
+      } catch (err) {
+        console.error('Gemini API call failed, falling back to rule-based engine:', err);
+      }
+    }
+
+    // Fallback generator with RAG context padding if Gemini is not set or failed
+    if (!responseText) {
+      const lowerMsg = message.toLowerCase();
+      const ragHeader = `[Local RAG Search retrieved recommendations for your query: "${message}"]:\n${tipsContext}\n\n`;
+
+      if (lowerMsg.includes('analyze') || lowerMsg.includes('footprint') || lowerMsg.includes('data')) {
+        responseText = ragHeader + `Based on my analysis of your carbon data, your total emissions stand at **${totalKg.toFixed(1)} kg CO₂e**, and you have offset **${offsetKg.toFixed(1)} kg CO₂e** through credits, leaving a net footprint of **${netKg.toFixed(1)} kg CO₂e**.\n\n`;
+
+        if (topCategory) {
+          const percentage = totalKg > 0 ? ((topCategoryEmissions / totalKg) * 100).toFixed(0) : '0';
+          responseText += `Your highest emitting sector is **${topCategory.toUpperCase()}**, representing **${percentage}%** (${topCategoryEmissions.toFixed(1)} kg) of your total footprint. `;
+          
+          if (topCategory === 'transport') {
+            responseText += `Since travel is your largest contributor, I recommend prioritizing public transport commutes, carpooling, or walking for short-distance trips. Shifting 3 trips a week to cycling can save up to **45 kg CO₂e** per month!`;
+          } else if (topCategory === 'energy') {
+            responseText += `Since home energy usage is high, check for phantom plug loads. Unplugging appliances when not in use and lowering your thermostat by 2°F during peak hours can shave **35 kg CO₂e** off your monthly bill.`;
+          } else if (topCategory === 'diet') {
+            responseText += `Since agriculture and diet carry high carbon weights, introducing just 2 meatless days a week could reduce your food footprint by **30 kg CO₂e** per month.`;
+          } else if (topCategory === 'waste') {
+            responseText += `Reducing packaging waste by buying in bulk and setting up a kitchen compost bin can save up to **25 kg CO₂e** of methane-equivalent emissions monthly.`;
+          }
+        } else {
+          responseText += `You haven't logged any carbon activities yet! Use the **Add Activity** button on the dashboard to log your travel or household habits, and I will analyze your data immediately to offer customized reduction strategies.`;
+        }
+      } else if (lowerMsg.includes('tip') || lowerMsg.includes('reduction') || lowerMsg.includes('help')) {
+        responseText = ragHeader + `Here is your priority reduction roadmap based on matched suggestions:\n\n` +
+          retrievedTips.map((t, idx) => `${idx + 1}. **${t.title}** (${t.category.toUpperCase()}): ${t.description} (Savings: -${t.savingsKg} kg/mo)`).join('\n');
+      } else if (lowerMsg.includes('badge') || lowerMsg.includes('milestone') || lowerMsg.includes('gamify')) {
+        responseText = `We have active rewards programs to support your journey! You can unlock badges like **Eco Pioneer** for your first log, **Green Commuter** for low travel footprints, and **Carbon Neutralizer** for logging offset credits. You've currently offset **${offsetKg.toFixed(0)} kg CO₂e**—keep it up!\n\nRelevant suggestions:\n${tipsContext}`;
+      } else if (lowerMsg.includes('community') || lowerMsg.includes('comparison') || lowerMsg.includes('rank')) {
+        const avgCommunity = 450;
+        const comparisonPct = avgCommunity > 0 ? ((netKg - avgCommunity) / avgCommunity) * 100 : 0;
+        
+        if (netKg === 0) {
+          responseText = `You currently have 0 logged emissions, placing you in **1st place** of the community leaderboard! Log your carbon data to get an accurate comparison against the community average of **${avgCommunity} kg CO₂e** per month.\n\nRelevant suggestions:\n${tipsContext}`;
+        } else if (comparisonPct < 0) {
+          responseText = `Incredible! Your net footprint of **${netKg.toFixed(0)} kg** is **${Math.abs(comparisonPct).toFixed(0)}% lower** than the average EcoAware community member (${avgCommunity} kg). You currently rank in the top tier!\n\nRelevant suggestions:\n${tipsContext}`;
+        } else {
+          responseText = `Your current net footprint is **${netKg.toFixed(0)} kg**, which is **${comparisonPct.toFixed(0)}% higher** than the community average of **${avgCommunity} kg**. Try setting a new **Emissions reduction goal** on the dashboard to catch up!\n\nRelevant suggestions:\n${tipsContext}`;
         }
       } else {
-        responseText += `You haven't logged any carbon activities yet! Use the **Add Activity** button on the dashboard to log your travel or household habits, and I will analyze your data immediately to offer customized reduction strategies.`;
+        responseText = ragHeader + `Hello! I'm your AI Eco-Assistant. I analyze your carbon logs and use RAG semantic lookup to help you shrink your footprint.\n\nAsk me questions like:\n- *"Analyze my carbon data"* (I'll review your actual logs)\n- *"Give me reduction tips"*\n- *"How do I compare to the community?"*`;
       }
-    } else if (lowerMsg.includes('tip') || lowerMsg.includes('reduction') || lowerMsg.includes('help')) {
-      if (topCategory === 'transport') {
-        responseText = `Here is your priority reduction roadmap:\n\n1. **Active Travel:** Walk/cycle for trips under 2km (Potential: **-20 kg/mo**).\n2. **Optimize Rail:** Swap short flights for train travel where possible (Potential: **-110 kg/flight**).\n3. **Eco-Driving:** Keep your tires inflated and drive smoothly to lower fuel consumption by 10%.`;
-      } else {
-        responseText = `Here are three high-impact tips you can apply today:\n\n1. **Phantom Power:** Use smart power strips to shut down standby devices completely (Potential: **-12 kg/mo**).\n2. **Thermostat:** Adjust your winter heating target down 2°F (Potential: **-50 kg/mo**).\n3. **Diet Shift:** Swap beef or lamb for poultry or plant-based proteins on Meatless Mondays (Potential: **-35 kg/mo**).`;
-      }
-    } else if (lowerMsg.includes('badge') || lowerMsg.includes('milestone') || lowerMsg.includes('gamify')) {
-      responseText = `We have active rewards programs to support your journey! You can unlock badges like **Eco Pioneer** for your first log, **Green Commuter** for low travel footprints, and **Carbon Neutralizer** for logging offset credits. You've currently offset **${offsetKg.toFixed(0)} kg CO₂e**—keep it up!`;
-    } else if (lowerMsg.includes('community') || lowerMsg.includes('comparison') || lowerMsg.includes('rank')) {
-      const avgCommunity = 450; // Community average in kg
-      const comparisonPct = avgCommunity > 0 ? ((netKg - avgCommunity) / avgCommunity) * 100 : 0;
-      
-      if (netKg === 0) {
-        responseText = `You currently have 0 logged emissions, placing you in **1st place** of the community leaderboard! Log your carbon data to get an accurate comparison against the community average of **${avgCommunity} kg CO₂e** per month.`;
-      } else if (comparisonPct < 0) {
-        responseText = `Incredible! Your net footprint of **${netKg.toFixed(0)} kg** is **${Math.abs(comparisonPct).toFixed(0)}% lower** than the average EcoAware community member (${avgCommunity} kg). You currently rank in the top tier!`;
-      } else {
-        responseText = `Your current net footprint is **${netKg.toFixed(0)} kg**, which is **${comparisonPct.toFixed(0)}% higher** than the community average of **${avgCommunity} kg**. Try setting a new **Emissions reduction goal** on the dashboard to catch up!`;
-      }
-    } else {
-      responseText = `Hello! I'm your AI Eco-Assistant. I analyze your carbon logs to help you shrink your footprint.\n\nAsk me questions like:\n- *"Analyze my carbon data"* (I'll review your actual logs)\n- *"Give me reduction tips"*\n- *"How do I compare to the community?"*`;
     }
 
     res.json({
@@ -216,7 +283,7 @@ router.get('/community', async (req: Request, res: Response) => {
       .select({ name: users.name })
       .from(users)
       .where(eq(users.id, userId));
-    const userName = userRow?.name || 'You';
+    const userName = userRow?.name ? decryptUserField(userRow.name) : 'You';
 
     // Fetch user net footprint
     const [activityRow] = await db

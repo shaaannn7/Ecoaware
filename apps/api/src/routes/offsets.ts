@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { db } from '../db/connection.js';
 import { offsets } from '../db/schema.js';
@@ -25,50 +25,62 @@ const createOffsetSchema = z.object({
  * GET /api/offsets
  * Returns all offsets registered by the current user, ordered by date descending.
  */
-router.get('/', async (req: Request, res: Response) => {
-  const userOffsets = await db
-    .select()
-    .from(offsets)
-    .where(eq(offsets.userId, req.user!.userId))
-    .orderBy(desc(offsets.date));
-  res.json({ offsets: userOffsets });
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userOffsets = await db
+      .select()
+      .from(offsets)
+      .where(eq(offsets.userId, req.user!.userId))
+      .orderBy(desc(offsets.date));
+    res.json({ offsets: userOffsets });
+  } catch (err) {
+    next(err);
+  }
 });
 
 /**
  * POST /api/offsets
  * Logs a new carbon offset scheme purchase.
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
   const parsed = createOffsetSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
     return;
   }
 
-  const [offset] = await db
-    .insert(offsets)
-    .values({ userId: req.user!.userId, ...parsed.data })
-    .returning();
-  res.status(201).json({ offset });
+  try {
+    const [offset] = await db
+      .insert(offsets)
+      .values({ userId: req.user!.userId, ...parsed.data })
+      .returning();
+    res.status(201).json({ offset });
+  } catch (err) {
+    next(err);
+  }
 });
 
 /**
  * DELETE /api/offsets/:id
  * Removes a registered offset program from the database record.
  */
-router.delete('/:id', async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  const existing = await db.select().from(offsets)
-    .where(and(eq(offsets.id, id), eq(offsets.userId, req.user!.userId))).limit(1);
+router.delete('/:id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    const existing = await db.select().from(offsets)
+      .where(and(eq(offsets.id, id), eq(offsets.userId, req.user!.userId))).limit(1);
 
-  if (existing.length === 0) {
-    res.status(404).json({ error: 'Offset not found' });
-    return;
+    if (existing.length === 0) {
+      res.status(404).json({ error: 'Offset not found' });
+      return;
+    }
+
+    await db.delete(offsets)
+      .where(and(eq(offsets.id, id), eq(offsets.userId, req.user!.userId)));
+    res.json({ message: 'Offset deleted' });
+  } catch (err) {
+    next(err);
   }
-
-  await db.delete(offsets)
-    .where(and(eq(offsets.id, id), eq(offsets.userId, req.user!.userId)));
-  res.json({ message: 'Offset deleted' });
 });
 
 export default router;

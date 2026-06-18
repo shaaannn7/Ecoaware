@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { 
   statsApi, goalsApi, activitiesApi, offsetsApi, 
-  FootprintStats, BreakdownItem, MonthlyItem, EmissionFactor, Tip, Activity, Offset 
+  FootprintStats, BreakdownItem, MonthlyItem, EmissionFactor, Tip, Activity, Offset, Goal
 } from '../services/api';
 
 /**
@@ -17,7 +17,7 @@ export interface CarbonData {
   /** Last 10 activity log entries */
   recentActivities: Activity[];
   /** Active target targets */
-  goals: any[];
+  goals: Goal[];
   /** Registered carbon credit contributions */
   offsets: Offset[];
   /** Conversion factor constants for user dropdown inputs */

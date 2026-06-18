@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { db } from '../db/connection.js';
@@ -10,6 +10,11 @@ import {
   verifyRefreshToken,
 } from '../services/jwt.js';
 import { authenticate } from '../middleware/auth.js';
+import {
+  encryptName,
+  encryptDeterministic,
+  decryptUserField,
+} from '../services/crypto.js';
 
 const router = Router();
 
@@ -35,107 +40,121 @@ const loginSchema = z.object({
  * Registers a new user, hashes their password, generates avatar initials,
  * and creates initial access/refresh tokens.
  */
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', async (req: Request, res: Response, next: NextFunction) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
     return;
   }
 
-  const { email, name, password } = parsed.data;
+  try {
+    const { email, name, password } = parsed.data;
 
-  // Prevent duplicate email registrations.
-  const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  if (existing.length > 0) {
-    res.status(409).json({ error: 'Email already registered' });
-    return;
-  }
+    const existing = await db.select().from(users).where(eq(users.email, encryptDeterministic(email))).limit(1);
+    if (existing.length > 0) {
+      res.status(409).json({ error: 'Email already registered' });
+      return;
+    }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  
-  // Calculate initials from the name string for the default UI avatar.
-  const initials = name
-    .split(' ')
-    .map((n) => n[0].toUpperCase())
-    .slice(0, 2)
-    .join('');
+    const passwordHash = await bcrypt.hash(password, 12);
+    const initials = name
+      .split(' ')
+      .map((n) => n[0].toUpperCase())
+      .slice(0, 2)
+      .join('');
 
-  const [user] = await db
-    .insert(users)
-    .values({ email, name, passwordHash, avatarInitials: initials })
-    .returning({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      avatarInitials: users.avatarInitials,
-      monthlyLimitKg: users.monthlyLimitKg,
+    const [user] = await db
+      .insert(users)
+      .values({
+        email: encryptDeterministic(email),
+        name: encryptName(name),
+        passwordHash,
+        avatarInitials: initials,
+      })
+      .returning({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        avatarInitials: users.avatarInitials,
+        monthlyLimitKg: users.monthlyLimitKg,
+      });
+
+    const decryptedEmail = decryptUserField(user.email);
+    const decryptedName = decryptUserField(user.name);
+
+    const accessToken = signAccessToken({ userId: user.id, email: decryptedEmail });
+    const refreshToken = signRefreshToken({ userId: user.id, email: decryptedEmail });
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await db.insert(refreshTokens).values({ userId: user.id, token: refreshToken, expiresAt });
+
+    res.status(201).json({
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: decryptedEmail,
+        name: decryptedName,
+        avatarInitials: user.avatarInitials,
+        monthlyLimitKg: user.monthlyLimitKg,
+      },
     });
-
-  const accessToken = signAccessToken({ userId: user.id, email: user.email });
-  const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
-
-  // Store refresh token in database to enable session revocation/invalidation.
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  await db.insert(refreshTokens).values({ userId: user.id, token: refreshToken, expiresAt });
-
-  res.status(201).json({
-    accessToken,
-    refreshToken,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatarInitials: user.avatarInitials,
-      monthlyLimitKg: user.monthlyLimitKg,
-    },
-  });
+  } catch (err) {
+    next(err);
+  }
 });
 
 /**
  * POST /api/auth/login
  * Authenticates user credentials and returns active access/refresh tokens.
  */
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'Validation failed', details: parsed.error.flatten() });
     return;
   }
 
-  const { email, password } = parsed.data;
+  try {
+    const { email, password } = parsed.data;
 
-  const rows = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  const user = rows[0];
-  if (!user) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
+    const rows = await db.select().from(users).where(eq(users.email, encryptDeterministic(email))).limit(1);
+    const user = rows[0];
+    // Use constant-time comparison message — do not distinguish "email not found" from "wrong password"
+    if (!user) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: 'Invalid email or password' });
+      return;
+    }
+
+    const decryptedEmail = decryptUserField(user.email);
+    const decryptedName = decryptUserField(user.name);
+
+    const accessToken = signAccessToken({ userId: user.id, email: decryptedEmail });
+    const refreshToken = signRefreshToken({ userId: user.id, email: decryptedEmail });
+
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await db.insert(refreshTokens).values({ userId: user.id, token: refreshToken, expiresAt });
+
+    res.json({
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: decryptedEmail,
+        name: decryptedName,
+        avatarInitials: user.avatarInitials,
+        monthlyLimitKg: user.monthlyLimitKg,
+      },
+    });
+  } catch (err) {
+    next(err);
   }
-
-  // Validate the plain password against the stored database hash.
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) {
-    res.status(401).json({ error: 'Invalid email or password' });
-    return;
-  }
-
-  const accessToken = signAccessToken({ userId: user.id, email: user.email });
-  const refreshToken = signRefreshToken({ userId: user.id, email: user.email });
-
-  // Store refresh token session.
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  await db.insert(refreshTokens).values({ userId: user.id, token: refreshToken, expiresAt });
-
-  res.json({
-    accessToken,
-    refreshToken,
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      avatarInitials: user.avatarInitials,
-      monthlyLimitKg: user.monthlyLimitKg,
-    },
-  });
 });
 
 /**
@@ -201,7 +220,17 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
     return;
   }
 
-  res.json({ user: rows[0] });
+  const user = rows[0];
+  res.json({
+    user: {
+      id: user.id,
+      email: decryptUserField(user.email),
+      name: decryptUserField(user.name),
+      avatarInitials: user.avatarInitials,
+      monthlyLimitKg: user.monthlyLimitKg,
+      createdAt: user.createdAt,
+    },
+  });
 });
 
 /**
@@ -239,18 +268,19 @@ router.put('/profile', authenticate, async (req: Request, res: Response) => {
   const updates: Partial<typeof users.$inferInsert> = {};
 
   // Verify email uniqueness if changed.
-  if (email && email !== user.email) {
-    const emailCheck = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const decryptedOldEmail = decryptUserField(user.email);
+  if (email && email !== decryptedOldEmail) {
+    const emailCheck = await db.select().from(users).where(eq(users.email, encryptDeterministic(email))).limit(1);
     if (emailCheck.length > 0) {
       res.status(409).json({ error: 'Email already in use' });
       return;
     }
-    updates.email = email;
+    updates.email = encryptDeterministic(email);
   }
 
   // Generate initials if profile name is updated.
   if (name) {
-    updates.name = name;
+    updates.name = encryptName(name);
     updates.avatarInitials = name
       .split(' ')
       .map((n) => n[0].toUpperCase())
@@ -281,8 +311,8 @@ router.put('/profile', authenticate, async (req: Request, res: Response) => {
     res.json({
       user: {
         id: user.id,
-        email: user.email,
-        name: user.name,
+        email: decryptedOldEmail,
+        name: decryptUserField(user.name),
         avatarInitials: user.avatarInitials,
         monthlyLimitKg: user.monthlyLimitKg,
       },
@@ -302,7 +332,15 @@ router.put('/profile', authenticate, async (req: Request, res: Response) => {
       monthlyLimitKg: users.monthlyLimitKg,
     });
 
-  res.json({ user: updatedUser });
+  res.json({
+    user: {
+      id: updatedUser.id,
+      email: decryptUserField(updatedUser.email),
+      name: decryptUserField(updatedUser.name),
+      avatarInitials: updatedUser.avatarInitials,
+      monthlyLimitKg: updatedUser.monthlyLimitKg,
+    },
+  });
 });
 
 /**

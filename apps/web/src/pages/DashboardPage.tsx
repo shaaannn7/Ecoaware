@@ -176,7 +176,7 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
   // Inject monthly reference into each data point so AreaTooltipContent can compute deltas
   const monthlyWithRef = monthly.map((m) => ({ ...m, __monthlyRef: monthly }));
 
-  const activeGoals = goals.filter(g => !g.achieved);
+  const activeGoals = goals.filter(g => g.status === 'active');
 
   const handleDownloadReport = () => {
     if (!data || !user) return;
@@ -263,6 +263,25 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
             </div>
           ) : (
             <>
+              <table style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>
+                <caption>Carbon Emissions Category Share Breakdown Table</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Category</th>
+                    <th scope="col">Percentage (%)</th>
+                    <th scope="col">Emissions (kg CO₂e)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdownWithColors.map((item, idx) => (
+                    <tr key={idx}>
+                      <td>{item.name}</td>
+                      <td>{item.value}%</td>
+                      <td>{item.kg} kg</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie data={breakdownWithColors} cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none">
@@ -338,19 +357,38 @@ export default function DashboardPage({ onOpenActivity, onOpenGoal, onOpenOffset
               <p className="text-xs">No monthly historical trend data available.</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyWithRef} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorKg" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={isDarkMode ? '#10b981' : '#6366f1'} stopOpacity={0.4}/>
-                    <stop offset="95%" stopColor={isDarkMode ? '#10b981' : '#6366f1'} stopOpacity={0.0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="label" stroke={isDarkMode ? '#475569' : '#94a3b8'} fontSize={10} tickLine={false} axisLine={false} />
-                <Tooltip content={<AreaTooltipContent />} />
-                <Area type="monotone" dataKey="kg" stroke={isDarkMode ? '#10b981' : '#6366f1'} strokeWidth={2} fillOpacity={1} fill="url(#colorKg)" />
-              </AreaChart>
-            </ResponsiveContainer>
+            <>
+              <table style={{ position: 'absolute', width: '1px', height: '1px', padding: 0, margin: '-1px', overflow: 'hidden', clip: 'rect(0, 0, 0, 0)', whiteSpace: 'nowrap', border: 0 }}>
+                <caption>Historical Monthly Carbon Emissions Data Table</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Month</th>
+                    <th scope="col">Emissions (kg CO₂e)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyWithRef.map((item, idx) => (
+                    <tr key={idx}>
+                      <td>{item.label}</td>
+                      <td>{item.kg} kg</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyWithRef} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorKg" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={isDarkMode ? '#10b981' : '#6366f1'} stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor={isDarkMode ? '#10b981' : '#6366f1'} stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="label" stroke={isDarkMode ? '#475569' : '#94a3b8'} fontSize={10} tickLine={false} axisLine={false} />
+                  <Tooltip content={<AreaTooltipContent />} />
+                  <Area type="monotone" dataKey="kg" stroke={isDarkMode ? '#10b981' : '#6366f1'} strokeWidth={2} fillOpacity={1} fill="url(#colorKg)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </>
           )}
         </div>
 
